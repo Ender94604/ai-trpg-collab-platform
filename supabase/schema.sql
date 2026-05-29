@@ -107,3 +107,220 @@ create index if not exists ai_outputs_session_id_idx
 
 create index if not exists ai_outputs_created_by_idx
   on public.ai_outputs(created_by);
+
+create or replace function public.handle_new_auth_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+begin
+  insert into public.profiles (id, email, display_name)
+  values (
+    new.id,
+    new.email,
+    new.raw_user_meta_data ->> 'display_name'
+  )
+  on conflict (id) do update
+    set
+      email = excluded.email,
+      display_name = coalesce(public.profiles.display_name, excluded.display_name),
+      updated_at = now();
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_auth_user();
+
+create or replace function public.is_campaign_member(
+  target_campaign_id uuid,
+  target_user_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.campaign_members
+    where campaign_id = target_campaign_id
+      and user_id = target_user_id
+  );
+$$;
+
+create or replace function public.is_campaign_gm(
+  target_campaign_id uuid,
+  target_user_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.campaign_members
+    where campaign_id = target_campaign_id
+      and user_id = target_user_id
+      and role = 'gm'
+  );
+$$;
+
+create or replace function public.is_campaign_owner(
+  target_campaign_id uuid,
+  target_user_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.campaigns
+    where id = target_campaign_id
+      and owner_id = target_user_id
+  );
+$$;
+
+alter table public.profiles enable row level security;
+alter table public.campaigns enable row level security;
+alter table public.campaign_members enable row level security;
+alter table public.characters enable row level security;
+alter table public.sessions enable row level security;
+alter table public.ai_outputs enable row level security;
+
+drop policy if exists "Users can view their own profile" on public.profiles;
+create policy "Users can view their own profile"
+  on public.profiles
+  for select
+  using (id = auth.uid());
+
+drop policy if exists "Users can update their own profile" on public.profiles;
+create policy "Users can update their own profile"
+  on public.profiles
+  for update
+  using (id = auth.uid())
+  with check (id = auth.uid());
+
+drop policy if exists "Authenticated users can create campaigns" on public.campaigns;
+create policy "Authenticated users can create campaigns"
+  on public.campaigns
+  for insert
+  to authenticated
+  with check (owner_id = auth.uid());
+
+drop policy if exists "Campaign members can view campaigns" on public.campaigns;
+create policy "Campaign members can view campaigns"
+  on public.campaigns
+  for select
+  using (public.is_campaign_member(id, auth.uid()));
+
+drop policy if exists "Campaign owners and GMs can update campaigns" on public.campaigns;
+create policy "Campaign owners and GMs can update campaigns"
+  on public.campaigns
+  for update
+  using (
+    owner_id = auth.uid()
+    or public.is_campaign_gm(id, auth.uid())
+  )
+  with check (
+    owner_id = auth.uid()
+    or public.is_campaign_gm(id, auth.uid())
+  );
+
+drop policy if exists "Campaign members can view campaign members" on public.campaign_members;
+create policy "Campaign members can view campaign members"
+  on public.campaign_members
+  for select
+  using (public.is_campaign_member(campaign_id, auth.uid()));
+
+drop policy if exists "Campaign owners and GMs can manage campaign members" on public.campaign_members;
+create policy "Campaign owners and GMs can manage campaign members"
+  on public.campaign_members
+  for all
+  using (
+    public.is_campaign_owner(campaign_id, auth.uid())
+    or public.is_campaign_gm(campaign_id, auth.uid())
+  )
+  with check (
+    public.is_campaign_owner(campaign_id, auth.uid())
+    or public.is_campaign_gm(campaign_id, auth.uid())
+  );
+
+drop policy if exists "Campaign members can view characters" on public.characters;
+create policy "Campaign members can view characters"
+  on public.characters
+  for select
+  using (public.is_campaign_member(campaign_id, auth.uid()));
+
+drop policy if exists "Users can create their own characters" on public.characters;
+create policy "Users can create their own characters"
+  on public.characters
+  for insert
+  to authenticated
+  with check (
+    user_id = auth.uid()
+    and public.is_campaign_member(campaign_id, auth.uid())
+  );
+
+drop policy if exists "Users can update their own characters" on public.characters;
+create policy "Users can update their own characters"
+  on public.characters
+  for update
+  using (
+    user_id = auth.uid()
+    and public.is_campaign_member(campaign_id, auth.uid())
+  )
+  with check (
+    user_id = auth.uid()
+    and public.is_campaign_member(campaign_id, auth.uid())
+  );
+
+drop policy if exists "Campaign members can view sessions" on public.sessions;
+create policy "Campaign members can view sessions"
+  on public.sessions
+  for select
+  using (public.is_campaign_member(campaign_id, auth.uid()));
+
+drop policy if exists "Campaign GMs can create sessions" on public.sessions;
+create policy "Campaign GMs can create sessions"
+  on public.sessions
+  for insert
+  to authenticated
+  with check (
+    created_by = auth.uid()
+    and public.is_campaign_gm(campaign_id, auth.uid())
+  );
+
+drop policy if exists "Campaign GMs can update sessions" on public.sessions;
+create policy "Campaign GMs can update sessions"
+  on public.sessions
+  for update
+  using (public.is_campaign_gm(campaign_id, auth.uid()))
+  with check (public.is_campaign_gm(campaign_id, auth.uid()));
+
+drop policy if exists "Campaign GMs can view AI outputs" on public.ai_outputs;
+create policy "Campaign GMs can view AI outputs"
+  on public.ai_outputs
+  for select
+  using (public.is_campaign_gm(campaign_id, auth.uid()));
+
+drop policy if exists "Campaign GMs can create AI outputs" on public.ai_outputs;
+create policy "Campaign GMs can create AI outputs"
+  on public.ai_outputs
+  for insert
+  to authenticated
+  with check (
+    created_by = auth.uid()
+    and public.is_campaign_gm(campaign_id, auth.uid())
+  );

@@ -23,6 +23,8 @@ The database should:
 
 `profiles` stores application-level user profile data for authenticated Supabase users. Authentication itself remains owned by Supabase Auth.
 
+When a new Supabase Auth user is inserted into `auth.users`, the database trigger `on_auth_user_created` calls `public.handle_new_auth_user()` and creates the matching `public.profiles` row automatically. The profile uses `new.id`, `new.email`, and `new.raw_user_meta_data ->> 'display_name'`.
+
 ### Campaign
 
 `campaigns` is the central business object. A Campaign is a TRPG workspace created by a GM. Characters, Sessions, AI outputs, and membership records all belong to a Campaign.
@@ -185,23 +187,124 @@ The schema adds indexes for common MVP access patterns:
 
 The unique index on `campaign_members(campaign_id, user_id)` prevents duplicate membership records.
 
-## 7. RLS Design Plan
+## 7. Auth Profile Trigger
 
-The initial `schema.sql` creates tables, constraints, foreign keys, and indexes, but intentionally does not include complex RLS policies.
+The schema defines:
 
-Planned RLS approach:
+- `public.handle_new_auth_user()`
+- `on_auth_user_created` trigger on `auth.users`
 
-- Enable RLS on all application tables.
-- `profiles`: users can read limited profile fields for Campaign members and update only their own profile.
-- `campaigns`: members can read their Campaigns; only GMs can update or delete.
-- `campaign_members`: members can read membership in their Campaigns; only GMs can invite or change roles.
-- `characters`: Campaign members can read characters; users can mutate their own characters; GMs may get elevated edit permissions in a later version.
-- `sessions`: Campaign members can read saved summaries; only GMs can create or edit raw logs and summaries.
-- `ai_outputs`: only GMs can create AI outputs; members can read only outputs intended for shared Campaign history.
+The function is `security definer` and uses a fixed `search_path` so it can insert into `public.profiles` immediately after Supabase Auth creates a user.
 
-Until RLS is implemented, application code must treat all private data access as server-only and enforce membership checks in the data access layer.
+Behavior:
 
-## 8. Tables Deferred From MVP P0
+- `profiles.id` is set to `auth.users.id`.
+- `profiles.email` is copied from `new.email`.
+- `profiles.display_name` is copied from `new.raw_user_meta_data ->> 'display_name'` when present.
+- `on conflict (id)` updates email and preserves an existing display name when possible.
+
+## 8. RLS Strategy
+
+The MVP schema enables Row Level Security on all application tables:
+
+- `profiles`
+- `campaigns`
+- `campaign_members`
+- `characters`
+- `sessions`
+- `ai_outputs`
+
+To avoid recursive policies on `campaign_members`, the schema defines helper functions:
+
+- `public.is_campaign_member(campaign_id uuid, user_id uuid)`
+- `public.is_campaign_gm(campaign_id uuid, user_id uuid)`
+- `public.is_campaign_owner(campaign_id uuid, user_id uuid)`
+
+These helpers are `security definer`, `stable`, and use a fixed `search_path = public`.
+
+## 9. Table Access Rules
+
+### profiles
+
+- Users can view their own profile.
+- Users can update their own profile.
+- Profile creation is handled by the Auth trigger, not by direct client inserts.
+
+### campaigns
+
+- Authenticated users can create Campaigns when `owner_id = auth.uid()`.
+- Campaign members can view Campaigns.
+- Campaign owners and GMs can update Campaigns.
+- Delete policies are intentionally not added yet; deletion should be handled later through a carefully reviewed GM/owner flow.
+
+### campaign_members
+
+- Campaign members can view membership rows for Campaigns they belong to.
+- Campaign owners and GMs can manage membership rows.
+- The owner rule allows the initial owner to add the first GM/member rows after Campaign creation.
+
+### characters
+
+- Campaign members can view Characters in their Campaign.
+- Users can create Characters only for themselves and only in Campaigns where they are members.
+- Users can update only their own Characters.
+- GMs can view all Characters through the member read rule, but cannot edit player Characters in this MVP policy set.
+
+### sessions
+
+- Campaign members can view Sessions in their Campaign.
+- GMs can create Sessions.
+- GMs can update Sessions.
+- Players cannot create or update Sessions in the MVP.
+
+### ai_outputs
+
+- GMs can view AI outputs.
+- GMs can create AI outputs.
+- Players cannot view raw AI output history in this MVP policy set. Saved player-visible summaries should be read through `sessions.summary`.
+
+## 10. MVP RLS Limitations
+
+The current RLS policies are intentionally conservative and MVP-oriented:
+
+- There is no Campaign delete policy yet.
+- There is no character delete policy yet.
+- There is no Session delete policy yet.
+- There is no AI output update/delete policy yet.
+- Players cannot view `ai_outputs`; they can only view saved summaries through `sessions`.
+- GMs cannot edit player Characters yet, even though that may be useful later.
+- Campaign creation and initial membership insertion are separate operations. Application code should create the Campaign and then insert the owner as a `gm` member.
+- The policies do not yet distinguish draft/private Session logs from player-visible summaries. Application code should avoid returning sensitive raw logs to players until finer-grained policies or server-side DTOs exist.
+
+Future improvements:
+
+- Add delete policies with explicit owner/GM checks.
+- Add DTO/server-side filtering for player-visible Session fields.
+- Add invite-specific policies once the `invites` table exists.
+- Add audit logging for role changes and destructive actions.
+- Add stricter profile visibility for non-members.
+
+## 11. Permission Test Scenarios
+
+Before shipping Auth and Campaign features, test these scenarios in Supabase or integration tests:
+
+- A newly signed-up user receives a matching `profiles` row.
+- A user can read and update only their own profile.
+- An authenticated user can create a Campaign with themselves as `owner_id`.
+- A Campaign owner can insert themselves as a `gm` in `campaign_members`.
+- A non-member cannot read a private Campaign.
+- A Campaign member can read the Campaign and membership list.
+- A player cannot update Campaign settings.
+- A GM can update Campaign settings.
+- A player can create and update their own Character.
+- A player cannot update another user's Character.
+- A GM can read all Characters in the Campaign.
+- A GM can create and update Sessions.
+- A player cannot create or update Sessions.
+- A GM can create and read AI outputs.
+- A player cannot read raw `ai_outputs`.
+
+## 12. Tables Deferred From MVP P0
 
 ### npcs
 
