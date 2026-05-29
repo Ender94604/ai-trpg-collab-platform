@@ -126,3 +126,23 @@ export async function getCampaignOverviewForCurrentUser(
     error: null,
   };
 }
+
+export async function getCampaignRoleForCurrentUser(
+  campaignId: string,
+  userId: string,
+) {
+  const supabase = await createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from("campaign_members")
+    .select("role")
+    .eq("campaign_id", campaignId)
+    .eq("user_id", userId)
+    .single<{ role: "gm" | "player" }>();
+
+  if (error) {
+    return { role: null, error: "You do not have access to this Campaign." };
+  }
+
+  return { role: data.role, error: null };
+}
