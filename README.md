@@ -89,7 +89,11 @@ The schema includes MVP tables, profile auto-creation trigger, indexes, and init
 
 ## Current Status
 
-MVP implemented. Pending manual end-to-end validation, UI polish, screenshots, and deployment.
+MVP implemented and manually validated for the GM-side end-to-end flow.
+
+Test results are recorded in [MVP Test Report](./docs/MVP_TEST_REPORT.md).
+
+Player permission checks, non-member access checks, and empty `raw_log` error handling are pending. The project has not been deployed yet, and screenshots have not been added.
 
 ## Roadmap
 
