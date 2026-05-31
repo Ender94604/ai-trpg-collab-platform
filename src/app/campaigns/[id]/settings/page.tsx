@@ -1,7 +1,24 @@
-export default function CampaignSettingsPage() {
+import { CampaignNav } from "@/components/campaign/campaign-nav";
+
+export default async function CampaignSettingsPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-6 text-zinc-950">
-      <h1 className="text-2xl font-semibold">Campaign Settings Page</h1>
+    <main className="min-h-screen bg-zinc-50 px-6 py-12 text-zinc-950">
+      <section className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+        <CampaignNav campaignId={id} />
+        <div className="rounded-lg border border-zinc-200 bg-white p-8 shadow-sm">
+          <p className="text-sm font-medium text-zinc-500">Campaign</p>
+          <h1 className="text-3xl font-semibold">Settings</h1>
+          <p className="mt-2 text-sm text-zinc-600">
+            Campaign settings will live here.
+          </p>
+        </div>
+      </section>
     </main>
   );
 }

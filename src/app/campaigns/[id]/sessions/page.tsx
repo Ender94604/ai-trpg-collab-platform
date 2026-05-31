@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CampaignNav } from "@/components/campaign/campaign-nav";
 import { CreateSessionForm } from "@/components/session/session-form";
 import { SessionList } from "@/components/session/session-list";
 import { requireUser } from "@/lib/auth/session";
@@ -46,6 +47,7 @@ export default async function CampaignSessionsPage({
           >
             Back to Campaign Overview
           </Link>
+          <CampaignNav campaignId={campaign.id} />
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-sm font-medium text-zinc-500">

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SessionSummaryPanel } from "@/components/ai/session-summary-panel";
+import { CampaignNav } from "@/components/campaign/campaign-nav";
 import { EditSessionForm } from "@/components/session/session-form";
 import { requireUser } from "@/lib/auth/session";
 import { getCampaignOverviewForCurrentUser } from "@/lib/db/campaigns";
@@ -65,6 +66,7 @@ export default async function CampaignSessionDetailPage({
           >
             Back to Sessions
           </Link>
+          <CampaignNav campaignId={campaign.id} />
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-sm font-medium text-zinc-500">
@@ -92,7 +94,6 @@ export default async function CampaignSessionDetailPage({
               {session.raw_log || "No raw log yet."}
             </p>
           </section>
-
         </article>
 
         <SessionSummaryPanel

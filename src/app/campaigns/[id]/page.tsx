@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CampaignNav } from "@/components/campaign/campaign-nav";
 import { requireUser } from "@/lib/auth/session";
 import { getCampaignOverviewForCurrentUser } from "@/lib/db/campaigns";
 
@@ -35,11 +36,18 @@ export default async function CampaignDetailPage({
 
   return (
     <main className="min-h-screen bg-zinc-50 px-6 py-12 text-zinc-950">
-      <section className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-lg border border-zinc-200 bg-white p-8 shadow-sm">
-        <div className="space-y-2">
-          <Link className="text-sm text-zinc-600 hover:text-zinc-950" href="/dashboard">
+      <section className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+        <div className="space-y-4">
+          <Link
+            className="text-sm text-zinc-600 hover:text-zinc-950"
+            href="/dashboard"
+          >
             Back to Dashboard
           </Link>
+          <CampaignNav campaignId={campaign.id} />
+        </div>
+
+        <div className="flex flex-col gap-6 rounded-lg border border-zinc-200 bg-white p-8 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-sm font-medium text-zinc-500">
@@ -51,29 +59,29 @@ export default async function CampaignDetailPage({
               {campaign.role}
             </span>
           </div>
-        </div>
 
-        <div className="grid gap-5 text-sm">
-          <section>
-            <h2 className="font-semibold">Description</h2>
-            <p className="mt-1 text-zinc-700">
-              {campaign.description || "No description yet."}
-            </p>
-          </section>
+          <div className="grid gap-5 text-sm">
+            <section>
+              <h2 className="font-semibold">Description</h2>
+              <p className="mt-1 text-zinc-700">
+                {campaign.description || "No description yet."}
+              </p>
+            </section>
 
-          <section>
-            <h2 className="font-semibold">System Type</h2>
-            <p className="mt-1 text-zinc-700">
-              {campaign.system_type || "Not specified."}
-            </p>
-          </section>
+            <section>
+              <h2 className="font-semibold">System Type</h2>
+              <p className="mt-1 text-zinc-700">
+                {campaign.system_type || "Not specified."}
+              </p>
+            </section>
 
-          <section>
-            <h2 className="font-semibold">World Setting</h2>
-            <p className="mt-1 whitespace-pre-wrap text-zinc-700">
-              {campaign.world_setting || "No world setting yet."}
-            </p>
-          </section>
+            <section>
+              <h2 className="font-semibold">World Setting</h2>
+              <p className="mt-1 whitespace-pre-wrap text-zinc-700">
+                {campaign.world_setting || "No world setting yet."}
+              </p>
+            </section>
+          </div>
         </div>
       </section>
     </main>

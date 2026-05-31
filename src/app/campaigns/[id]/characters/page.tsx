@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CampaignNav } from "@/components/campaign/campaign-nav";
 import { CharacterList } from "@/components/character/character-list";
 import { CreateCharacterForm } from "@/components/character/character-form";
 import { requireUser } from "@/lib/auth/session";
@@ -47,6 +48,7 @@ export default async function CampaignCharactersPage({
           >
             Back to Campaign Overview
           </Link>
+          <CampaignNav campaignId={campaign.id} />
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-sm font-medium text-zinc-500">
