@@ -6,6 +6,10 @@ AI-TRPG Collaboration Platform is an AI-assisted collaboration platform for TRPG
 
 The MVP focuses on a practical campaign workspace: Campaign management, character sheets, Session logs, and AI-generated Session summaries. It is designed to reduce the manual work of organizing long-running tabletop role-playing campaigns while keeping GM / Player collaboration boundaries clear.
 
+## Live Demo
+
+[https://royce-ai-trpg-platform.netlify.app](https://royce-ai-trpg-platform.netlify.app)
+
 ## MVP Features
 
 - Supabase Auth registration, login, and logout
@@ -121,9 +125,11 @@ AI Summary section showing the generated structured recap.
 
 MVP implemented and manually validated for the GM-side end-to-end flow.
 
+Deployed to Netlify.
+
 Test results are recorded in [MVP Test Report](./docs/MVP_TEST_REPORT.md).
 
-Player permission checks, non-member access checks, and empty `raw_log` error handling are pending. The project has not been deployed yet.
+Player permission checks, non-member access checks, and empty `raw_log` error handling are still pending.
 
 ## Roadmap
 
