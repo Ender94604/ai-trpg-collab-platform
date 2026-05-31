@@ -87,13 +87,43 @@ The schema includes MVP tables, profile auto-creation trigger, indexes, and init
 - [Database Design](./docs/DATABASE_DESIGN.md)
 - [Agent Rules](./AGENTS.md)
 
+## Screenshots
+
+Login page for registering or signing in with Supabase Auth.
+
+![Login page](docs/screenshots/01-login.png)
+
+Dashboard showing the signed-in user's Campaign list.
+
+![Dashboard](docs/screenshots/02-dashboard.png)
+
+Campaign Overview with internal Campaign navigation.
+
+![Campaign Overview](docs/screenshots/03-campaign-overview.png)
+
+Characters page for creating and reviewing character sheets.
+
+![Characters](docs/screenshots/04-characters.png)
+
+Sessions page for creating and listing Session logs.
+
+![Sessions](docs/screenshots/05-sessions.png)
+
+Session Detail page showing Session information and raw log.
+
+![Session Detail](docs/screenshots/06-session-detail.png)
+
+AI Summary section showing the generated structured recap.
+
+![AI Summary](docs/screenshots/07-ai-summary.png)
+
 ## Current Status
 
 MVP implemented and manually validated for the GM-side end-to-end flow.
 
 Test results are recorded in [MVP Test Report](./docs/MVP_TEST_REPORT.md).
 
-Player permission checks, non-member access checks, and empty `raw_log` error handling are pending. The project has not been deployed yet, and screenshots have not been added.
+Player permission checks, non-member access checks, and empty `raw_log` error handling are pending. The project has not been deployed yet.
 
 ## Roadmap
 
@@ -102,4 +132,4 @@ Player permission checks, non-member access checks, and empty `raw_log` error ha
 - AI NPC generation
 - Invite links
 - Deployment to Vercel
-- Screenshots and demo video
+- Demo video
