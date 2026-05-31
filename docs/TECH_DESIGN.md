@@ -59,13 +59,20 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 OPENAI_API_KEY=
+DEEPSEEK_API_KEY=
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-v4-flash
 ```
 
 Rules:
 
 - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are safe to expose to the browser.
 - `SUPABASE_SERVICE_ROLE_KEY` is private and must only be read by trusted server-only code.
-- `OPENAI_API_KEY` is private and must only be read by server-side AI integration code.
+- The current MVP AI provider is DeepSeek, called through its OpenAI-compatible Chat Completions API.
+- `DEEPSEEK_API_KEY` is private and must only be read by server-side AI integration code.
+- `DEEPSEEK_BASE_URL` defaults to `https://api.deepseek.com`.
+- `DEEPSEEK_MODEL` defaults to `deepseek-v4-flash`; do not use deprecated DeepSeek model aliases as defaults.
+- `OPENAI_API_KEY` may exist for older local setups, but the current implementation does not use it.
 - `.env.local` must not be committed.
 
 ## 5. Security Rules
@@ -73,6 +80,7 @@ Rules:
 - Do not hard-code API keys.
 - Do not expose `SUPABASE_SERVICE_ROLE_KEY` to browser bundles.
 - Do not call AI APIs from the browser.
+- Do not expose `DEEPSEEK_API_KEY` or any AI provider key to browser bundles.
 - Do not rely on hidden buttons as the only authorization layer.
 - Private Campaign reads and writes must verify both the current user and Campaign membership.
 - GM-only actions, such as Session management and AI summary generation, must be checked on the server.
@@ -112,3 +120,23 @@ Recommended order:
    - Vercel environment variables.
    - Supabase project configuration.
    - Final lint/build verification.
+
+## 7. AI Summary Data Flow
+
+The MVP AI Summary flow is:
+
+```text
+GM clicks Generate Summary
+-> client calls POST /api/ai/summarize
+-> route handler verifies authenticated user
+-> route handler verifies Campaign role is gm
+-> server reads Campaign, Characters, and Session raw_log through RLS
+-> server builds prompt
+-> server calls DeepSeek Chat Completions with response_format json_object
+-> server normalizes JSON summary
+-> server updates sessions.summary
+-> server inserts ai_outputs row with type = session_summary
+-> client renders structured summary
+```
+
+Only the internal route handler calls DeepSeek. The browser never receives the DeepSeek API key.

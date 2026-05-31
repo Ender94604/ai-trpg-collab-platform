@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SessionSummaryPanel } from "@/components/ai/session-summary-panel";
 import { EditSessionForm } from "@/components/session/session-form";
 import { requireUser } from "@/lib/auth/session";
 import { getCampaignOverviewForCurrentUser } from "@/lib/db/campaigns";
@@ -92,15 +93,14 @@ export default async function CampaignSessionDetailPage({
             </p>
           </section>
 
-          <section>
-            <h2 className="font-semibold">AI Summary</h2>
-            <p className="mt-1 text-sm text-zinc-700">
-              {session.summary
-                ? JSON.stringify(session.summary, null, 2)
-                : "AI summary has not been generated yet."}
-            </p>
-          </section>
         </article>
+
+        <SessionSummaryPanel
+          campaignId={campaign.id}
+          canGenerate={campaign.role === "gm"}
+          initialSummary={session.summary}
+          sessionId={session.id}
+        />
 
         {campaign.role === "gm" ? (
           <EditSessionForm session={session} />

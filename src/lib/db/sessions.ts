@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { SessionSummary } from "@/lib/ai/summary-types";
 
 export type SessionListItem = {
   id: string;
@@ -69,4 +70,45 @@ export async function getSessionDetail(
   }
 
   return { session: data, error: null };
+}
+
+export async function saveSessionSummary({
+  campaignId,
+  createdBy,
+  prompt,
+  sessionId,
+  summary,
+}: {
+  campaignId: string;
+  createdBy: string;
+  prompt: string;
+  sessionId: string;
+  summary: SessionSummary;
+}) {
+  const supabase = await createSupabaseServerClient();
+
+  const { error: sessionError } = await supabase
+    .from("sessions")
+    .update({ summary })
+    .eq("id", sessionId)
+    .eq("campaign_id", campaignId);
+
+  if (sessionError) {
+    return { error: sessionError.message };
+  }
+
+  const { error: outputError } = await supabase.from("ai_outputs").insert({
+    campaign_id: campaignId,
+    session_id: sessionId,
+    type: "session_summary",
+    prompt,
+    output: summary,
+    created_by: createdBy,
+  });
+
+  if (outputError) {
+    return { error: outputError.message };
+  }
+
+  return { error: null };
 }
