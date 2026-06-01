@@ -35,7 +35,9 @@ export default async function CampaignSessionDetailPage({
     );
   }
 
-  const { session, error: sessionError } = await getSessionDetail(id, sessionId);
+  const { session, error: sessionError } = await getSessionDetail(id, sessionId, {
+    includePrivateFields: campaign.role === "gm",
+  });
 
   if (!session) {
     return (
@@ -88,12 +90,43 @@ export default async function CampaignSessionDetailPage({
             </p>
           </section>
 
-          <section>
-            <h2 className="font-semibold">Raw log</h2>
-            <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-700">
-              {session.raw_log || "No raw log yet."}
-            </p>
-          </section>
+          {campaign.role === "gm" ? (
+            <>
+              <section>
+                <h2 className="font-semibold">GM Notes / Session Prep</h2>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-700">
+                  {session.gm_notes || "No GM notes yet."}
+                </p>
+              </section>
+
+              <section>
+                <h2 className="font-semibold">Session Transcript</h2>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-700">
+                  {session.transcript || "No transcript yet."}
+                </p>
+              </section>
+
+              {session.raw_log && !session.transcript ? (
+                <section className="rounded-md border border-amber-200 bg-amber-50 p-4">
+                  <h2 className="font-semibold text-amber-900">
+                    Legacy raw_log
+                  </h2>
+                  <p className="mt-1 text-sm text-amber-800">
+                    This legacy field is retained for existing data. AI Summary
+                    now uses Session Transcript instead.
+                  </p>
+                  <p className="mt-3 whitespace-pre-wrap text-sm text-amber-950">
+                    {session.raw_log}
+                  </p>
+                </section>
+              ) : null}
+            </>
+          ) : (
+            <section className="rounded-md bg-zinc-100 p-4 text-sm text-zinc-700">
+              GM notes and Session transcript are private to the GM. Players can
+              view the saved AI Summary once it is generated.
+            </section>
+          )}
         </article>
 
         <SessionSummaryPanel
@@ -107,7 +140,8 @@ export default async function CampaignSessionDetailPage({
           <EditSessionForm session={session} />
         ) : (
           <div className="rounded-md bg-zinc-100 p-4 text-sm text-zinc-700">
-            Players can view Sessions, but only GMs can edit Session logs.
+            Players can view saved Session summaries, but only GMs can edit GM
+            notes and transcripts.
           </div>
         )}
       </section>

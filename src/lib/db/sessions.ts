@@ -14,7 +14,9 @@ export type SessionDetail = {
   campaign_id: string;
   title: string;
   session_date: string | null;
-  raw_log: string;
+  raw_log?: string | null;
+  gm_notes?: string | null;
+  transcript?: string | null;
   summary: unknown | null;
   created_by: string;
   created_at: string;
@@ -53,14 +55,16 @@ export async function getSessionsForCampaign(campaignId: string) {
 export async function getSessionDetail(
   campaignId: string,
   sessionId: string,
+  options: { includePrivateFields?: boolean } = {},
 ) {
   const supabase = await createSupabaseServerClient();
+  const selectColumns = options.includePrivateFields
+    ? "id,campaign_id,title,session_date,raw_log,gm_notes,transcript,summary,created_by,created_at,updated_at"
+    : "id,campaign_id,title,session_date,summary,created_by,created_at,updated_at";
 
   const { data, error } = await supabase
     .from("sessions")
-    .select(
-      "id,campaign_id,title,session_date,raw_log,summary,created_by,created_at,updated_at",
-    )
+    .select(selectColumns)
     .eq("id", sessionId)
     .eq("campaign_id", campaignId)
     .single<SessionDetail>();

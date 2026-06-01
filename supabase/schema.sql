@@ -58,12 +58,29 @@ create table if not exists public.sessions (
   title text not null,
   session_date date,
   raw_log text not null default '',
+  gm_notes text,
+  transcript text,
   summary jsonb,
   created_by uuid not null references public.profiles(id) on delete restrict,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint sessions_title_not_empty check (length(trim(title)) > 0)
 );
+
+alter table public.sessions
+  add column if not exists gm_notes text;
+
+alter table public.sessions
+  add column if not exists transcript text;
+
+comment on column public.sessions.raw_log is
+  'Legacy pre-transcript Session log field. Retained for backward compatibility; new AI summaries should use transcript.';
+
+comment on column public.sessions.gm_notes is
+  'GM-only private Session prep notes. Not intended for Player display or AI factual summary input.';
+
+comment on column public.sessions.transcript is
+  'Actual Session transcript / play record. MVP input is manual paste; future source may be voice transcription.';
 
 create table if not exists public.ai_outputs (
   id uuid primary key default gen_random_uuid(),

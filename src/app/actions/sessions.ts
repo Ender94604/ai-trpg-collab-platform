@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/session";
 import { getCampaignRoleForCurrentUser } from "@/lib/db/campaigns";
-import { getSessionDetail, optionalSessionDate, sessionText } from "@/lib/db/sessions";
+import {
+  getSessionDetail,
+  optionalSessionDate,
+  sessionText,
+} from "@/lib/db/sessions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type SessionFormState = {
@@ -31,7 +35,8 @@ function readSessionPayload(formData: FormData) {
     ok: true,
     title,
     session_date: optionalSessionDate(formData.get("session_date")),
-    raw_log: sessionText(formData.get("raw_log")),
+    gm_notes: sessionText(formData.get("gm_notes")) || null,
+    transcript: sessionText(formData.get("transcript")) || null,
   } as const;
 }
 
@@ -79,7 +84,8 @@ export async function createSessionAction(
     campaign_id: campaignId,
     title: payload.title,
     session_date: payload.session_date,
-    raw_log: payload.raw_log,
+    gm_notes: payload.gm_notes,
+    transcript: payload.transcript,
     created_by: user.id,
   });
 
@@ -119,6 +125,7 @@ export async function updateSessionAction(
   const { session, error: sessionError } = await getSessionDetail(
     campaignId,
     sessionId,
+    { includePrivateFields: true },
   );
 
   if (sessionError || !session) {
@@ -131,7 +138,8 @@ export async function updateSessionAction(
     .update({
       title: payload.title,
       session_date: payload.session_date,
-      raw_log: payload.raw_log,
+      gm_notes: payload.gm_notes,
+      transcript: payload.transcript,
     })
     .eq("id", sessionId)
     .eq("campaign_id", campaignId);

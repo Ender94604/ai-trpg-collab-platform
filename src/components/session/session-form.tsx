@@ -58,7 +58,7 @@ export function EditSessionForm({ session }: EditSessionFormProps) {
       session={session}
       state={state}
       submitLabel="Save Session"
-      title="Edit Session Log"
+      title="Edit Session"
     />
   );
 }
@@ -109,13 +109,41 @@ function SessionFields({
       </label>
 
       <label className="block space-y-1">
-        <span className="text-sm font-medium">Raw log</span>
+        <span className="text-sm font-medium">GM Notes / Session Prep</span>
         <textarea
-          className="min-h-56 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-950"
-          defaultValue={session?.raw_log ?? ""}
-          name="raw_log"
+          className="min-h-40 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-950"
+          defaultValue={session?.gm_notes ?? ""}
+          name="gm_notes"
         />
       </label>
+
+      <label className="block space-y-1">
+        <span className="text-sm font-medium">Session Transcript</span>
+        <textarea
+          className="min-h-56 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-950"
+          defaultValue={session?.transcript ?? ""}
+          name="transcript"
+        />
+        <span className="text-xs text-zinc-500">
+          In this MVP, paste the actual session transcript here. In a future
+          version, this can be generated from voice transcription.
+        </span>
+      </label>
+
+      {session?.raw_log && !session.transcript ? (
+        <section className="rounded-md border border-amber-200 bg-amber-50 p-4">
+          <h3 className="text-sm font-semibold text-amber-900">
+            Legacy raw_log
+          </h3>
+          <p className="mt-1 text-xs text-amber-800">
+            This older Session has legacy raw_log data. Copy it into Session
+            Transcript if it represents the actual play record.
+          </p>
+          <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap text-xs text-amber-950">
+            {session.raw_log}
+          </pre>
+        </section>
+      ) : null}
 
       {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}
       {state.success ? (

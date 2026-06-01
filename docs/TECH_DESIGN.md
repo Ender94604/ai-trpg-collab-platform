@@ -107,7 +107,8 @@ Recommended order:
 
 4. Session management
    - Session list/detail.
-   - Raw Session log save/edit.
+   - GM-only Session prep notes save/edit.
+   - Session transcript save/edit for actual play records.
    - GM-only mutation checks.
 
 5. AI Summary
@@ -130,7 +131,7 @@ GM clicks Generate Summary
 -> client calls POST /api/ai/summarize
 -> route handler verifies authenticated user
 -> route handler verifies Campaign role is gm
--> server reads Campaign, Characters, and Session raw_log through RLS
+-> server reads Campaign, Characters, and Session transcript
 -> server builds prompt
 -> server calls DeepSeek Chat Completions with response_format json_object
 -> server normalizes JSON summary
@@ -140,6 +141,14 @@ GM clicks Generate Summary
 ```
 
 Only the internal route handler calls DeepSeek. The browser never receives the DeepSeek API key.
+
+Session text fields have distinct product meanings:
+
+- `gm_notes`: GM-only Session Prep notes. These are private to GMs and are not a factual source for AI summaries.
+- `transcript`: the actual Session record. In the MVP, the GM manually pastes this text. In a future version, it may be generated from voice transcription.
+- `raw_log`: legacy field retained for existing data. New code should not use it as the primary AI Summary input.
+
+Players can view saved AI summaries but should not receive GM notes, transcripts, or legacy raw logs from server-side data access. Voice platforms, live audio, and speech-to-text are future directions and are not implemented in this MVP change.
 
 ## 8. Password Reset Flow
 

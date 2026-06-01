@@ -43,7 +43,10 @@ export function buildSessionSummaryPrompt({
 Generate a structured post-session summary for the game master.
 
 Hard requirements:
-- Do not invent important facts that do not appear in the raw session log.
+- The Session Transcript is the actual record of what happened during play.
+- Do not invent important facts that do not appear in the Session Transcript.
+- GM notes / prep notes are not a factual source for what happened in play.
+- Do not infer that prepared content actually happened unless it appears in the Session Transcript.
 - You may organize, classify, and lightly clarify scattered information.
 - The output should help the game master quickly review before the next session.
 - Use Campaign information and Character cards only as context.
@@ -69,8 +72,8 @@ ${characterContext}
 Session:
 Title: ${session.title}
 Date: ${session.session_date || "N/A"}
-Raw log:
-${session.raw_log}`;
+Session Transcript:
+${session.transcript || ""}`;
 }
 
 export async function generateSessionSummary(prompt: string) {

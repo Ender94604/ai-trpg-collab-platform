@@ -52,6 +52,7 @@ export async function POST(request: Request) {
   const { session, error: sessionError } = await getSessionDetail(
     campaignId,
     sessionId,
+    { includePrivateFields: true },
   );
 
   if (sessionError || !session) {
@@ -61,9 +62,12 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!session.raw_log.trim()) {
+  if (!session.transcript?.trim()) {
     return NextResponse.json(
-      { error: "Session raw_log is empty. Add a raw log before generating." },
+      {
+        error:
+          "Session transcript is empty. Add the actual session transcript before generating a summary.",
+      },
       { status: 400 },
     );
   }

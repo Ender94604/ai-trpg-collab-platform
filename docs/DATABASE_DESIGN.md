@@ -43,7 +43,7 @@ When a new Supabase Auth user is inserted into `auth.users`, the database trigge
 
 ### Session
 
-`sessions` stores a single TRPG session record, including the raw session log and the saved AI summary. The summary is stored as `jsonb` so structured AI output can evolve without immediate schema churn.
+`sessions` stores a single TRPG session record, including GM-only prep notes, the actual play transcript, and the saved AI summary. The summary is stored as `jsonb` so structured AI output can evolve without immediate schema churn.
 
 ### AI Output
 
@@ -166,7 +166,9 @@ Purpose: Stores Session records and saved AI summaries.
 | campaign_id | uuid | Required Campaign ID. Cascades on Campaign delete. |
 | title | text | Required Session title. |
 | session_date | date | Optional in-game or real session date. |
-| raw_log | text | Raw Session log. Defaults to empty text. |
+| raw_log | text | Legacy Session log field. Defaults to empty text and is retained for backward compatibility. |
+| gm_notes | text | Optional GM-only private Session prep notes. Not shown to Players and not used as AI factual input. |
+| transcript | text | Optional actual Session record. MVP input is manual paste; future source may be voice transcription. |
 | summary | jsonb | Optional saved AI summary. |
 | created_by | uuid | Required creator profile ID. |
 | created_at | timestamptz | Creation timestamp. |
@@ -298,6 +300,9 @@ The invite RPC functions avoid opening broad direct SELECT access to all active 
 - GMs can create Sessions.
 - GMs can update Sessions.
 - Players cannot create or update Sessions in the MVP.
+- Application code must not return `gm_notes`, `transcript`, or legacy `raw_log` to Players.
+- Players can view saved `sessions.summary` after the GM generates it.
+- AI Summary generation uses `transcript`, not `gm_notes` or legacy `raw_log`.
 
 ### ai_outputs
 
@@ -318,7 +323,8 @@ The current RLS policies are intentionally conservative and MVP-oriented:
 - Players cannot view `ai_outputs`; they can only view saved summaries through `sessions`.
 - GMs cannot edit player Characters yet, even though that may be useful later.
 - Campaign creation and initial membership insertion are separate operations. Application code should create the Campaign and then insert the owner as a `gm` member.
-- The policies do not yet distinguish draft/private Session logs from player-visible summaries. Application code should avoid returning sensitive raw logs to players until finer-grained policies or server-side DTOs exist.
+- PostgreSQL RLS is row-level, not field-level. Application data access must select private Session fields only for GMs.
+- Legacy `raw_log` remains for existing data, but new Session create/edit flows use `gm_notes` and `transcript`.
 
 Future improvements:
 
