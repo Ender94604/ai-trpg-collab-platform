@@ -140,3 +140,33 @@ GM clicks Generate Summary
 ```
 
 Only the internal route handler calls DeepSeek. The browser never receives the DeepSeek API key.
+
+## 8. Password Reset Flow
+
+Password reset is handled through Supabase Auth without using the service role key.
+
+The MVP flow is:
+
+```text
+User clicks Forgot password on /login
+-> user submits email on /reset-password
+-> server action calls supabase.auth.resetPasswordForEmail
+-> Supabase sends a recovery email
+-> recovery link returns to /auth/callback?next=/update-password
+-> callback route exchanges the code for a user session
+-> user lands on /update-password
+-> server action calls supabase.auth.updateUser({ password })
+```
+
+The callback route exists so that recovery links carrying a `code` can establish the Supabase session cookie before the user submits the new password. Without this exchange step, `updateUser` can fail with an auth-session-missing error.
+
+Password reset redirect URLs are derived from the current request origin instead of being hard-coded to localhost. Local development should resolve to `http://localhost:3000`, while production should resolve to the Netlify site origin.
+
+Supabase Auth URL Configuration should include:
+
+- Site URL: `https://royce-ai-trpg-platform.netlify.app`
+- Redirect URLs:
+  - `https://royce-ai-trpg-platform.netlify.app/**`
+  - `http://localhost:3000/**`
+
+The reset flow must not expose any private keys. The browser only interacts with the application pages, while Supabase Auth calls are made through the server client with the anon key and the current user session.

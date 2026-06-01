@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { signInAction, signUpAction } from "@/app/actions/auth";
 
@@ -62,6 +63,12 @@ export default function LoginPage() {
           >
             {signInPending ? "Signing in..." : "Sign in"}
           </button>
+          <Link
+            className="block text-center text-sm text-zinc-600 hover:text-zinc-950"
+            href="/reset-password"
+          >
+            Forgot password?
+          </Link>
         </form>
 
         <form
