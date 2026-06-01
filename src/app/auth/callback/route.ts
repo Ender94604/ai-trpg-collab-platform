@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+function getSafeNextPath(nextParam: string | null) {
+  if (!nextParam || !nextParam.startsWith("/") || nextParam.startsWith("//")) {
+    return "/dashboard";
+  }
+
+  return nextParam;
+}
+
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const nextParam = requestUrl.searchParams.get("next");
-  const next = nextParam?.startsWith("/") ? nextParam : "/dashboard";
+  const next = getSafeNextPath(requestUrl.searchParams.get("next"));
 
   if (code) {
     const supabase = await createSupabaseServerClient();

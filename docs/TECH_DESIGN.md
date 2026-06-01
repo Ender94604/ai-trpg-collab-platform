@@ -150,11 +150,11 @@ The MVP flow is:
 ```text
 User clicks Forgot password on /login
 -> user submits email on /reset-password
--> server action calls supabase.auth.resetPasswordForEmail with redirectTo = current origin + /auth/callback?next=/update-password
+-> server action calls supabase.auth.resetPasswordForEmail
 -> Supabase sends a recovery email
--> recovery link returns to /auth/callback with a code
--> callback route calls exchangeCodeForSession with the server Supabase client
--> callback route writes auth cookies and redirects to /update-password
+-> custom Reset Password email link returns to /auth/confirm with token_hash and type=recovery
+-> /auth/confirm calls verifyOtp({ token_hash, type: "recovery" }) with the server Supabase client
+-> /auth/confirm writes auth cookies and redirects to /update-password
 -> /update-password checks the current Supabase user/session
 -> server action calls supabase.auth.updateUser({ password })
 -> server action signs out and asks the user to log in again
@@ -162,9 +162,21 @@ User clicks Forgot password on /login
 
 The reset request form applies a short client-side cooldown after submission and uses a neutral success message so repeated clicks do not quickly hit Supabase rate limits and the UI does not reveal whether an email address exists.
 
-The `/auth/callback` route is the only place that exchanges the recovery `code`. If `exchangeCodeForSession` fails, the user is redirected back to `/reset-password?error=callback_failed`.
+The current recommended password reset flow uses `/auth/confirm` and Supabase's `token_hash` email template variable instead of the default `{{ .ConfirmationURL }}`. This avoids relying on fragile client-side token parsing or PKCE code exchange in the reset page.
 
-Password reset redirect URLs are derived from the current request origin instead of being hard-coded to localhost. Local development should resolve to `http://localhost:3000`, while production should resolve to the Netlify site origin.
+Supabase Dashboard Reset Password Email Template should use this link:
+
+```text
+{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/update-password
+```
+
+Do not use the default `{{ .ConfirmationURL }}` for the current password reset flow.
+
+The `/auth/confirm` route only supports `type=recovery` for the MVP. It verifies the `token_hash` with `verifyOtp`, rejects missing tokens and unsupported types, and only redirects to safe site-relative `next` paths.
+
+The existing `/auth/callback` route remains available for older OAuth or code-exchange compatible links. Password reset should prefer `/auth/confirm`.
+
+Password reset origins must not be hard-coded to localhost in deployed environments. Local development should resolve to `http://localhost:3000`, while production should resolve to the Netlify site origin.
 
 Supabase Auth URL Configuration should include:
 

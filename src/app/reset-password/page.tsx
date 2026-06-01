@@ -11,10 +11,7 @@ export default async function ResetPasswordPage({
   searchParams,
 }: ResetPasswordPageProps) {
   const { error } = await searchParams;
-  const initialError =
-    error === "callback_failed"
-      ? "Password reset link is invalid or expired. Please request a new reset link."
-      : null;
+  const initialError = getResetPasswordErrorMessage(error);
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-6 py-12 text-zinc-950">
@@ -37,4 +34,17 @@ export default async function ResetPasswordPage({
       </section>
     </main>
   );
+}
+
+function getResetPasswordErrorMessage(error?: string) {
+  if (
+    error === "callback_failed" ||
+    error === "missing_token" ||
+    error === "invalid_type" ||
+    error === "verify_failed"
+  ) {
+    return "Password reset link is invalid or expired. Please request a new reset link.";
+  }
+
+  return null;
 }
