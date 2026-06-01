@@ -4,7 +4,7 @@
 
 AI-TRPG Collaboration Platform is an AI-assisted collaboration platform for TRPG game masters and players.
 
-The MVP focuses on a practical campaign workspace: Campaign management, character sheets, Session logs, and AI-generated Session summaries. It is designed to reduce the manual work of organizing long-running tabletop role-playing campaigns while keeping GM / Player collaboration boundaries clear.
+The MVP focuses on a practical campaign workspace: Campaign management, character sheets, GM-only Session prep notes, Session transcripts, and AI-generated Session summaries. It is designed to reduce the manual work of organizing long-running tabletop role-playing campaigns while keeping GM / Player collaboration boundaries clear.
 
 ## Live Demo
 
@@ -17,9 +17,10 @@ The MVP focuses on a practical campaign workspace: Campaign management, characte
 - Campaign creation and management
 - Campaign internal navigation
 - Character sheet management
-- Session creation and `raw_log` recording
-- DeepSeek AI Session Summary
+- Session creation with GM Notes / Session Prep and Session Transcript
+- DeepSeek AI Session Summary based on Session Transcript
 - AI output persistence to `sessions.summary` and `ai_outputs`
+- Invite Link / Join Campaign flow
 - Basic GM / Player permission control
 
 ## Tech Stack
@@ -40,7 +41,7 @@ Register / Login
 -> Create Campaign
 -> Add Character
 -> Create Session
--> Write Raw Log
+-> Add GM Notes and Session Transcript
 -> Generate AI Summary
 ```
 
@@ -109,11 +110,11 @@ Characters page for creating and reviewing character sheets.
 
 ![Characters](docs/screenshots/04-characters.png)
 
-Sessions page for creating and listing Session logs.
+Sessions page for creating and listing Sessions.
 
 ![Sessions](docs/screenshots/05-sessions.png)
 
-Session Detail page showing Session information and raw log.
+Session Detail page showing Session information, GM Notes, and Session Transcript for GMs.
 
 ![Session Detail](docs/screenshots/06-session-detail.png)
 
@@ -123,19 +124,20 @@ AI Summary section showing the generated structured recap.
 
 ## Current Status
 
-MVP implemented and manually validated for the GM-side end-to-end flow.
+MVP implemented and manually validated for the core GM flow, Player invite/join flow, and Session Transcript based AI Summary flow.
 
 Deployed to Netlify.
 
 Test results are recorded in [MVP Test Report](./docs/MVP_TEST_REPORT.md).
 
-Player permission checks, non-member access checks, and empty `raw_log` error handling are still pending.
+Players can join Campaigns through invite links and view saved AI Summary content, but cannot view GM Notes / Session Prep or Session Transcript.
+
+Password Reset email-link validation remains blocked by Supabase email rate limit. Voice transcription is a future direction and is not implemented in the MVP.
 
 ## Roadmap
 
 - Campaign layout refactor
 - User testing
 - AI NPC generation
-- Invite links
-- Deployment to Vercel
+- Voice transcription for Session Transcript
 - Demo video
