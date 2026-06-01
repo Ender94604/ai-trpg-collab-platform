@@ -8,7 +8,7 @@ This report is a manual end-to-end validation template for the MVP flow:
 Auth -> Campaign -> Character -> Session -> AI Summary
 ```
 
-This document records the manual MVP validation completed for the core flow. Permission edge cases remain pending.
+This document records the manual MVP validation completed for the core flow. Most tested GM-side and non-member checks have passed; Player permission testing is blocked by the missing invite / join Campaign flow.
 
 ## 2. Test Environment
 
@@ -58,9 +58,9 @@ Do not record real passwords in this document.
 | TC-010 | AI Summary generation | Generate AI Summary from a Session with non-empty `raw_log`. | Structured summary is generated and displayed. | GM clicked Generate Summary; DeepSeek returned structured summary. | Passed |  |
 | TC-011 | `sessions.summary` persistence | Refresh the Session detail page and inspect Supabase. | Summary remains visible and is stored in `sessions.summary`. | `sessions.summary` was updated; summary remained visible after refresh. | Passed |  |
 | TC-012 | `ai_outputs` insertion | Inspect `ai_outputs` after summary generation. | A row exists with `type = session_summary`. | `ai_outputs` contains a row with `type = session_summary`. | Passed |  |
-| TC-013 | Empty `raw_log` error | Attempt summary generation with empty `raw_log`. | Clear error is shown and AI API is not called. | Not tested. | Not Run | Pending. |
-| TC-014 | Player cannot generate summary | Login as Player and view a Session detail page. | Generate Summary button is not visible; direct API call is rejected. | Not tested. | Not Run | Pending permission check. |
-| TC-015 | Non-member cannot access private Campaign | Login as a user who is not a Campaign member and visit Campaign routes. | Private Campaign data is not shown. | Not tested. | Not Run | Pending permission check. |
+| TC-013 | Empty `raw_log` error | Attempt summary generation with empty `raw_log`. | Clear error is shown and AI API is not called. | GM clicked Generate Summary on a Session with empty `raw_log`; a clear error was shown and no AI Summary was generated. | Passed |  |
+| TC-014 | Player cannot generate summary | Login as Player and view a Session detail page. | Generate Summary button is not visible; direct API call is rejected. | Could not complete because the MVP does not yet include invite / join Campaign flow, so a newly registered user cannot join another user's Campaign as Player. | Blocked | Blocked by missing invite / join Campaign flow. |
+| TC-015 | Non-member cannot access private Campaign | Login as a user who is not a Campaign member and visit Campaign routes. | Private Campaign data is not shown. | Non-member account directly visited a private Campaign URL; private Campaign data was not shown. | Passed |  |
 
 Status values: `Passed`, `Failed`, `Blocked`, `Not Run`.
 
@@ -84,21 +84,30 @@ Check the following tables in Supabase Table Editor:
 - UI is MVP-level.
 - No deployment yet.
 
-## 8. Final Result
+## 8. Friend Trial Feedback
+
+- Login page does not provide password reset.
+- Newly registered users cannot find or join Campaigns created by others because invite / join flow is not implemented.
+
+## 9. Final Result
 
 | Result | Selection |
 |---|---|
 | Passed | `[x]` |
 | Failed | `[ ]` |
-| Blocked | `[ ]` |
+| Blocked | `[x]` |
 
 Summary:
 
 ```text
-Passed with pending permission checks.
+Passed with pending Player permission check.
 
 The core MVP flow was manually validated for a GM account:
 Auth -> Campaign -> Character -> Session -> AI Summary.
+
+Empty raw_log error handling passed.
+Non-member private Campaign access check passed.
+Player permission testing is blocked by the missing invite / join Campaign flow.
 
 Supabase records were verified for auth.users, profiles, campaigns,
 campaign_members, characters, sessions, and ai_outputs.
@@ -108,9 +117,9 @@ Follow-up items:
 
 ```text
 Pending checks:
-- Player permission behavior.
-- Non-member private Campaign access control.
-- Empty raw_log summary generation error.
+- Player permission behavior after invite / join Campaign flow exists.
 - Character self-edit as a separate explicit test.
 - Session raw_log edit as a separate explicit test.
+- Password reset UX.
+- Invite / join Campaign flow.
 ```
