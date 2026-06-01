@@ -4,7 +4,7 @@
 
 AI-TRPG Collaboration Platform is a full-stack AI collaboration workspace for tabletop role-playing game groups.
 
-The MVP helps game masters and players manage the core campaign workflow in one place: users can register, create a Campaign, add Character sheets, record Session logs, and generate structured AI Session summaries with DeepSeek. The project is designed as a practical AI product demo that shows product thinking, full-stack implementation, permission modeling, database design, and AI API integration.
+The MVP helps game masters and players manage the core campaign workflow in one place: users can register, create a Campaign, add Character sheets, prepare GM-only Session notes, paste the actual Session Transcript, and generate structured AI Session summaries with DeepSeek. The project is designed as a practical AI product demo that shows product thinking, full-stack implementation, permission modeling, database design, and AI API integration.
 
 ## 2. Product Thinking
 
@@ -28,6 +28,18 @@ The GM is the core organizer of a TRPG campaign. The GM creates the Campaign wor
 
 Community features need network effects, content supply, moderation, discovery, and social graph design. Those are expensive to validate early. The MVP instead focuses on a single campaign group's internal workflow, where the value can be tested with a much smaller surface area.
 
+### Why Split GM Notes and Session Transcript
+
+The original `raw_log` concept mixed two different product meanings: private GM prep notes and the actual record of what happened during play. That was risky because prep notes may contain spoilers, plans, or unused ideas that players should not see and AI should not treat as factual events.
+
+The revised model separates:
+
+- GM Notes / Session Prep: private GM-only planning material.
+- Session Transcript: the actual play record and source of truth for AI Summary.
+- AI Summary: the cleaned, player-visible recap saved by the GM.
+
+This makes the product safer for players, clearer for GMs, and more ready for a future voice-to-text workflow without implementing voice transcription in the MVP.
+
 ## 3. MVP Scope
 
 The MVP loop is:
@@ -42,20 +54,20 @@ Implemented MVP features:
 - Protected Dashboard.
 - Campaign creation and Campaign navigation.
 - Character sheet creation and self-editing.
-- Session creation and raw log recording.
-- DeepSeek-based structured AI Session Summary.
+- Session creation with GM Notes / Session Prep and Session Transcript.
+- DeepSeek-based structured AI Session Summary generated from Session Transcript.
 - Summary persistence to `sessions.summary`.
 - AI output audit trail in `ai_outputs`.
+- Invite Link / Join Campaign flow.
 - Basic GM / Player role boundaries.
 
 Out of scope for MVP:
 
 - Public community.
-- Invite links.
 - AI NPC generation.
 - Full rules engine.
 - Real-time collaboration.
-- Voice, video, or map tools.
+- Voice transcription, video, or map tools.
 - Payments.
 
 ## 4. Technical Architecture
@@ -82,6 +94,8 @@ Next.js App Router
 
 The browser never receives the DeepSeek API key or Supabase service role key. Ordinary user workflows use the Supabase anon key plus the current user session.
 
+AI Summary generation is handled server-side. The route handler verifies that the user is a Campaign GM, reads Campaign and Character context, reads the Session Transcript as the factual input, calls DeepSeek, and persists the result to `sessions.summary` and `ai_outputs`.
+
 ## 5. Database Design
 
 Campaign is the central business object because TRPG information naturally belongs to a campaign workspace. Members, Characters, Sessions, and AI outputs are all scoped by `campaign_id`.
@@ -91,7 +105,7 @@ Core tables:
 - `campaigns`: Campaign workspace metadata such as title, description, system type, world setting, owner, and visibility.
 - `campaign_members`: User membership and role for each Campaign. MVP roles are `gm` and `player`.
 - `characters`: Character sheets owned by users and scoped to a Campaign.
-- `sessions`: Session records with title, date, raw log, and saved AI summary.
+- `sessions`: Session records with title, date, GM-only prep notes, Session Transcript, legacy raw log, and saved AI summary.
 - `ai_outputs`: AI generation history, including prompt, output, type, Campaign, Session, and creator.
 
 Relationship summary:
@@ -107,11 +121,18 @@ profiles 1 -> many campaign_members / characters / sessions / ai_outputs
 
 Deleting a Campaign cascades to membership, Characters, Sessions, and AI outputs.
 
+Important Session fields:
+
+- `sessions.gm_notes`: GM-only Session Prep notes. These may include private plans, spoilers, unused ideas, or pacing notes.
+- `sessions.transcript`: the actual Session record. In the MVP, the GM manually pastes this text. In a future version, it could be produced by voice-to-text.
+- `sessions.summary`: the saved structured AI recap, visible to players after the GM generates it.
+- `sessions.raw_log`: retained as a legacy field so older data is not broken, but new AI Summary logic should not rely on it as the primary input.
+
 ## 6. Permission Design
 
 MVP roles:
 
-- GM: can create and manage Campaign content, create and edit Sessions, and generate AI summaries.
+- GM: can create and manage Campaign content, create and edit Sessions, view and edit GM Notes, view and edit Session Transcript, and generate AI summaries.
 - Player: can view Campaign content, create and edit their own Character, and view saved Session summaries.
 
 Permission checks happen in two places:
@@ -120,6 +141,8 @@ Permission checks happen in two places:
 - Supabase RLS policies enforce data access at the database level.
 
 The UI may hide buttons for better usability, but hidden buttons are not a security boundary. Server Actions and Route Handlers are still callable through HTTP requests, so authorization must be enforced close to the data access layer.
+
+For Session privacy, Players must not see GM Notes / Session Prep or Session Transcript. They only see the saved AI Summary after the GM chooses to generate and persist it. This keeps private GM planning and raw play records separate from the player-facing recap.
 
 ## 7. AI Summary Design
 
@@ -133,7 +156,7 @@ GM opens Session detail
 -> server verifies user is Campaign GM
 -> server reads Campaign context
 -> server reads Character list
--> server reads Session raw_log
+-> server reads Session Transcript
 -> server builds prompt
 -> server calls DeepSeek Chat Completions API
 -> server normalizes JSON response
@@ -145,8 +168,9 @@ GM opens Session detail
 Prompt design:
 
 - Use Campaign information and Character sheets as context.
-- Use Session `raw_log` as the source of truth.
-- Tell the model not to invent important facts that do not appear in the raw log.
+- Use Session Transcript as the source of truth.
+- Treat GM Notes / Session Prep as private planning material, not as proof of what happened during play.
+- Tell the model not to invent important facts that do not appear in the transcript.
 - Allow organization, classification, and summarization.
 - Require JSON output with stable fields:
   - `overview`
@@ -160,6 +184,8 @@ Persistence:
 
 - `sessions.summary` stores the latest saved structured summary.
 - `ai_outputs` stores the generation history with `type = session_summary`, prompt, output, Campaign, Session, and creator.
+
+The current MVP expects the GM to paste the transcript manually. Voice-to-text is a future input source for the same `sessions.transcript` field, not an implemented feature.
 
 ## 8. Trade-offs
 
@@ -175,9 +201,17 @@ DND, COC, PF, and homebrew systems have different Character sheet structures. A 
 
 Real-time editing requires presence, conflict handling, and more complex data synchronization. The MVP focuses on durable records and simple form submissions.
 
-### Why Use a Plain Textarea for `raw_log`
+### Why Use Plain Textareas for GM Notes and Transcript
 
-The first validation goal is whether AI summaries reduce recap work. A textarea is enough to capture long-form Session notes and avoids rich-text editor complexity.
+The first validation goal is whether AI summaries reduce recap work. Plain textareas are enough for private GM prep notes and long-form Session Transcript input, and they avoid rich-text editor complexity.
+
+### Why Not Build a Voice Platform in the MVP
+
+Voice capture, speaker diarization, transcription accuracy, consent, storage cost, and privacy controls would all expand the product surface area. The MVP keeps the input manual so the team can validate whether transcript-based AI summaries are useful before investing in voice infrastructure.
+
+### Why Start with Manual Transcript Paste
+
+Manual transcript paste is a small, testable bridge between the current product and a future voice-to-text direction. It lets the data model and AI prompt treat the transcript as the factual record while avoiding premature platform complexity.
 
 ### Why Store `stats` and `inventory` as Simplified JSON
 
@@ -189,17 +223,17 @@ Manual validation is recorded in [MVP Test Report](./MVP_TEST_REPORT.md).
 
 Current result:
 
-- GM-side end-to-end flow has passed manual validation.
+- Core GM-side end-to-end flow has passed manual validation.
+- Invite Link / Join Campaign and core Player flow have passed manual validation.
+- Session Transcript model has passed manual validation: GM Notes are GM-only, Transcript is the AI Summary input, Players cannot see GM Notes or Transcript, and Players can see saved AI Summary.
 - Verified flow: Auth -> Campaign -> Character -> Session -> AI Summary.
 - Supabase records were checked for `auth.users`, `profiles`, `campaigns`, `campaign_members`, `characters`, `sessions`, and `ai_outputs`.
 
-Pending checks:
+Known remaining validation gap:
 
-- Player permission behavior.
-- Non-member private Campaign access control.
-- Empty `raw_log` AI summary error path.
+- Password Reset email-link validation remains blocked by Supabase email rate limit.
 
-The project is not deployed yet and does not claim real user adoption.
+The project is deployed to Netlify, but it does not claim real user adoption.
 
 ## 10. Interview Q&A
 
@@ -225,7 +259,7 @@ Supabase provides Auth, PostgreSQL, RLS, and a straightforward JavaScript client
 
 ### 6. How does the AI Summary feature work?
 
-The server verifies that the user is a GM, gathers Campaign context, Character cards, and the Session raw log, then calls DeepSeek's OpenAI-compatible API. The structured JSON result is saved to `sessions.summary` and logged in `ai_outputs`.
+The server verifies that the user is a GM, gathers Campaign context, Character cards, and the Session Transcript, then calls DeepSeek's OpenAI-compatible API. The structured JSON result is saved to `sessions.summary` and logged in `ai_outputs`.
 
 ### 7. Why use DeepSeek instead of an OpenAI-specific SDK?
 
@@ -235,10 +269,14 @@ The project uses DeepSeek's OpenAI-compatible Chat Completions API through `fetc
 
 API keys must stay server-side. The Supabase service role key is not used for normal user flows. Private Campaign data must be checked by user session and Campaign membership. GM-only actions must be enforced on the server.
 
-### 9. What would you improve next?
+### 9. Why did you split raw_log into GM Notes and Session Transcript?
 
-I would finish permission testing for Player and non-member flows, refactor Campaign pages into a shared layout, deploy to Vercel, add invite links, and then explore AI NPC generation as a P1 feature.
+The original `raw_log` field mixed private GM prep and actual play records. That created two problems: players might see spoiler-heavy GM notes, and AI might summarize plans that never happened as if they were real events. Splitting the fields makes the product model clearer: GM Notes stay private, Transcript is the factual source for AI, and Summary is the curated player-visible output.
 
-### 10. What does this project demonstrate for an FDE or full-stack role?
+### 10. What would you improve next?
+
+I would continue manual validation around password reset, improve Campaign layout polish, add demo material, and then explore AI NPC generation or voice-to-text transcript capture as later features.
+
+### 11. What does this project demonstrate for an FDE or full-stack role?
 
 It demonstrates turning a vertical workflow into a deliverable product: scoping an MVP, designing data models, implementing full-stack flows, integrating an AI API, enforcing permissions, and documenting validation status clearly.
