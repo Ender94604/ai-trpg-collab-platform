@@ -1,7 +1,21 @@
 import Link from "next/link";
 import { ResetPasswordRequestForm } from "@/components/common/password-reset-forms";
 
-export default function ResetPasswordPage() {
+type ResetPasswordPageProps = {
+  searchParams: Promise<{
+    error?: string;
+  }>;
+};
+
+export default async function ResetPasswordPage({
+  searchParams,
+}: ResetPasswordPageProps) {
+  const { error } = await searchParams;
+  const initialError =
+    error === "callback_failed"
+      ? "Password reset link is invalid or expired. Please request a new reset link."
+      : null;
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-6 py-12 text-zinc-950">
       <section className="w-full max-w-md space-y-6">
@@ -13,7 +27,7 @@ export default function ResetPasswordPage() {
           </p>
         </div>
 
-        <ResetPasswordRequestForm />
+        <ResetPasswordRequestForm initialError={initialError} />
 
         <div className="text-center">
           <Link className="text-sm text-zinc-600 hover:text-zinc-950" href="/login">

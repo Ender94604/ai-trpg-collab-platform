@@ -31,6 +31,15 @@ export default async function UpdatePasswordPage() {
             </Link>
           </div>
         )}
+
+        <div className="text-center">
+          <Link
+            className="text-sm text-zinc-600 hover:text-zinc-950"
+            href="/reset-password"
+          >
+            Request a new reset link
+          </Link>
+        </div>
       </section>
     </main>
   );

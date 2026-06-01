@@ -140,12 +140,17 @@ export async function requestPasswordResetAction(
   });
 
   if (error) {
-    return { error: error.message, success: null };
+    return {
+      error: isRateLimitError(error.message)
+        ? "A reset link was requested recently. Please check your inbox or wait a few minutes before trying again."
+        : "Unable to send a reset link right now. Please try again later.",
+      success: null,
+    };
   }
 
   return {
     error: null,
-    success: "Check your email for the password reset link.",
+    success: "Check your inbox or try again later.",
   };
 }
 
@@ -181,9 +186,20 @@ export async function updatePasswordAction(
     };
   }
 
+  await supabase.auth.signOut();
   revalidatePath("/", "layout");
   return {
     error: null,
-    success: "Password updated. You can now return to login.",
+    success: "Password updated! Back to login.",
   };
+}
+
+function isRateLimitError(message: string) {
+  const normalizedMessage = message.toLowerCase();
+
+  return (
+    normalizedMessage.includes("rate limit") ||
+    normalizedMessage.includes("rate_limit") ||
+    normalizedMessage.includes("too many")
+  );
 }

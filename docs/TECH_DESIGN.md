@@ -150,15 +150,19 @@ The MVP flow is:
 ```text
 User clicks Forgot password on /login
 -> user submits email on /reset-password
--> server action calls supabase.auth.resetPasswordForEmail
+-> server action calls supabase.auth.resetPasswordForEmail with redirectTo = current origin + /auth/callback?next=/update-password
 -> Supabase sends a recovery email
--> recovery link returns to /auth/callback?next=/update-password
--> callback route exchanges the code for a user session
--> user lands on /update-password
+-> recovery link returns to /auth/callback with a code
+-> callback route calls exchangeCodeForSession with the server Supabase client
+-> callback route writes auth cookies and redirects to /update-password
+-> /update-password checks the current Supabase user/session
 -> server action calls supabase.auth.updateUser({ password })
+-> server action signs out and asks the user to log in again
 ```
 
-The callback route exists so that recovery links carrying a `code` can establish the Supabase session cookie before the user submits the new password. Without this exchange step, `updateUser` can fail with an auth-session-missing error.
+The reset request form applies a short client-side cooldown after submission and uses a neutral success message so repeated clicks do not quickly hit Supabase rate limits and the UI does not reveal whether an email address exists.
+
+The `/auth/callback` route is the only place that exchanges the recovery `code`. If `exchangeCodeForSession` fails, the user is redirected back to `/reset-password?error=callback_failed`.
 
 Password reset redirect URLs are derived from the current request origin instead of being hard-coded to localhost. Local development should resolve to `http://localhost:3000`, while production should resolve to the Netlify site origin.
 
@@ -169,4 +173,4 @@ Supabase Auth URL Configuration should include:
   - `https://royce-ai-trpg-platform.netlify.app/**`
   - `http://localhost:3000/**`
 
-The reset flow must not expose any private keys. The browser only interacts with the application pages, while Supabase Auth calls are made through the server client with the anon key and the current user session.
+The reset flow must not expose any private keys. Server-side reset-link requests and password updates use the user-scoped Supabase client. No service role key is involved.

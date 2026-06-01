@@ -1,23 +1,56 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import {
   requestPasswordResetAction,
   updatePasswordAction,
   type AuthFormState,
 } from "@/app/actions/auth";
 
-const initialState: AuthFormState = {
+type FormState = {
+  error: string | null;
+  success: string | null;
+};
+
+const RESET_COOLDOWN_SECONDS = 45;
+const RESET_COOLDOWN_KEY = "ai-trpg-password-reset-next-request-at";
+const RATE_LIMIT_MESSAGE =
+  "A reset link was requested recently. Please check your inbox or wait a few minutes before trying again.";
+
+const initialUpdateState: AuthFormState = {
   error: null,
   success: null,
 };
 
-export function ResetPasswordRequestForm() {
-  const [state, formAction, pending] = useActionState(
-    requestPasswordResetAction,
-    initialState,
-  );
+export function ResetPasswordRequestForm({
+  initialError,
+}: {
+  initialError?: string | null;
+}) {
+  const [state, formAction, pending] = useActionState(requestPasswordResetAction, {
+    error: initialError ?? null,
+    success: null,
+  });
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+
+  useEffect(() => {
+    updateCooldownFromStorage(setCooldownSeconds);
+
+    const interval = window.setInterval(() => {
+      updateCooldownFromStorage(setCooldownSeconds);
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (state.success || state.error === RATE_LIMIT_MESSAGE) {
+      startResetCooldown(setCooldownSeconds);
+    }
+  }, [state.error, state.success]);
+
+  const disabled = pending || cooldownSeconds > 0;
 
   return (
     <form
@@ -39,10 +72,10 @@ export function ResetPasswordRequestForm() {
 
       <button
         className="w-full rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
-        disabled={pending}
+        disabled={disabled}
         type="submit"
       >
-        {pending ? "Sending..." : "Send reset link"}
+        {getResetButtonLabel(pending, cooldownSeconds)}
       </button>
     </form>
   );
@@ -51,7 +84,7 @@ export function ResetPasswordRequestForm() {
 export function UpdatePasswordForm() {
   const [state, formAction, pending] = useActionState(
     updatePasswordAction,
-    initialState,
+    initialUpdateState,
   );
 
   return (
@@ -64,6 +97,7 @@ export function UpdatePasswordForm() {
         <input
           autoComplete="new-password"
           className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-950"
+          disabled={pending || Boolean(state.success)}
           minLength={6}
           name="password"
           required
@@ -76,6 +110,7 @@ export function UpdatePasswordForm() {
         <input
           autoComplete="new-password"
           className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-950"
+          disabled={pending || Boolean(state.success)}
           minLength={6}
           name="confirm_password"
           required
@@ -105,7 +140,7 @@ export function UpdatePasswordForm() {
   );
 }
 
-function FormMessage({ state }: { state: AuthFormState }) {
+function FormMessage({ state }: { state: FormState | AuthFormState }) {
   if (state.error) {
     return <p className="text-sm text-red-600">{state.error}</p>;
   }
@@ -115,4 +150,32 @@ function FormMessage({ state }: { state: AuthFormState }) {
   }
 
   return null;
+}
+
+function getResetButtonLabel(pending: boolean, cooldownSeconds: number) {
+  if (pending) {
+    return "Sending...";
+  }
+
+  if (cooldownSeconds > 0) {
+    return `Try again in ${cooldownSeconds}s`;
+  }
+
+  return "Send reset link";
+}
+
+function updateCooldownFromStorage(setCooldownSeconds: (seconds: number) => void) {
+  const nextRequestAt = Number(window.localStorage.getItem(RESET_COOLDOWN_KEY) ?? 0);
+  const remaining = Math.max(0, Math.ceil((nextRequestAt - Date.now()) / 1000));
+  setCooldownSeconds(remaining);
+
+  if (remaining === 0 && nextRequestAt) {
+    window.localStorage.removeItem(RESET_COOLDOWN_KEY);
+  }
+}
+
+function startResetCooldown(setCooldownSeconds: (seconds: number) => void) {
+  const nextRequestAt = Date.now() + RESET_COOLDOWN_SECONDS * 1000;
+  window.localStorage.setItem(RESET_COOLDOWN_KEY, String(nextRequestAt));
+  setCooldownSeconds(RESET_COOLDOWN_SECONDS);
 }
