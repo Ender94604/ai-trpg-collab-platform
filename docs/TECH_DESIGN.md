@@ -186,3 +186,34 @@ Supabase Auth URL Configuration should include:
   - `http://localhost:3000/**`
 
 The reset flow must not expose any private keys. Server-side reset-link requests and password updates use the user-scoped Supabase client. No service role key is involved.
+
+## 9. Invite Link / Join Campaign Flow
+
+Campaigns remain private by default. The project does not use public Campaign search or discovery. Players join a Campaign through a tokenized invite link created by a GM.
+
+The MVP invite flow is:
+
+```text
+GM opens /campaigns/[id]/settings
+-> server verifies the current user is a Campaign member and reads their role
+-> GM creates an invite link
+-> server action verifies role = gm
+-> server inserts campaign_invites with a random token
+-> Settings displays /join/[token] as a full localhost or Netlify URL
+-> player logs in or registers
+-> player opens /join/[token]
+-> server calls get_campaign_invite(token) RPC for minimal Campaign details
+-> player clicks Join Campaign
+-> server action calls join_campaign_by_invite(token) RPC
+-> RPC validates auth.uid(), token validity, expiration, and existing membership
+-> RPC inserts campaign_members role = player when needed
+-> player is redirected to /campaigns/[id]
+```
+
+Invite tokens are treated as secrets. The database does not expose broad direct SELECT access for all active invites. Instead:
+
+- GMs can directly view and create invite rows for Campaigns where they are GM.
+- `get_campaign_invite(invite_token)` is a security definer RPC that returns only minimal join-page data for a valid token.
+- `join_campaign_by_invite(invite_token)` is a security definer RPC that performs the membership insert after validating the token and current user.
+
+The application must not use the Supabase service role key for invite creation or joining. All calls use the normal server Supabase client with the current user session. MVP does not implement invite revoke/delete or public Campaign discovery.

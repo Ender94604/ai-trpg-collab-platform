@@ -78,6 +78,16 @@ create table if not exists public.ai_outputs (
   constraint ai_outputs_prompt_not_empty check (length(trim(prompt)) > 0)
 );
 
+create table if not exists public.campaign_invites (
+  id uuid primary key default gen_random_uuid(),
+  campaign_id uuid not null references public.campaigns(id) on delete cascade,
+  token text not null unique,
+  created_by uuid not null references public.profiles(id) on delete cascade,
+  expires_at timestamptz,
+  created_at timestamptz not null default now(),
+  constraint campaign_invites_token_not_empty check (length(trim(token)) > 0)
+);
+
 create index if not exists campaigns_owner_id_idx
   on public.campaigns(owner_id);
 
@@ -107,6 +117,12 @@ create index if not exists ai_outputs_session_id_idx
 
 create index if not exists ai_outputs_created_by_idx
   on public.ai_outputs(created_by);
+
+create index if not exists campaign_invites_token_idx
+  on public.campaign_invites(token);
+
+create index if not exists campaign_invites_campaign_id_idx
+  on public.campaign_invites(campaign_id);
 
 create or replace function public.handle_new_auth_user()
 returns trigger
@@ -192,12 +208,100 @@ as $$
   );
 $$;
 
+create or replace function public.get_campaign_invite(
+  invite_token text
+)
+returns table (
+  campaign_id uuid,
+  title text,
+  expires_at timestamptz,
+  is_member boolean
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid;
+begin
+  current_user_id := auth.uid();
+
+  if current_user_id is null then
+    raise exception 'Authentication required' using errcode = '28000';
+  end if;
+
+  return query
+    select
+      campaign_invites.campaign_id,
+      campaigns.title,
+      campaign_invites.expires_at,
+      public.is_campaign_member(campaign_invites.campaign_id, current_user_id)
+    from public.campaign_invites
+    join public.campaigns
+      on campaigns.id = campaign_invites.campaign_id
+    where campaign_invites.token = invite_token
+      and (
+        campaign_invites.expires_at is null
+        or campaign_invites.expires_at > now()
+      )
+    limit 1;
+end;
+$$;
+
+create or replace function public.join_campaign_by_invite(
+  invite_token text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid;
+  target_campaign_id uuid;
+begin
+  current_user_id := auth.uid();
+
+  if current_user_id is null then
+    raise exception 'Authentication required' using errcode = '28000';
+  end if;
+
+  select campaign_invites.campaign_id
+    into target_campaign_id
+  from public.campaign_invites
+  where campaign_invites.token = invite_token
+    and (
+      campaign_invites.expires_at is null
+      or campaign_invites.expires_at > now()
+    )
+  limit 1;
+
+  if target_campaign_id is null then
+    raise exception 'Invalid or expired invite' using errcode = 'P0001';
+  end if;
+
+  insert into public.campaign_members (campaign_id, user_id, role)
+  values (target_campaign_id, current_user_id, 'player')
+  on conflict (campaign_id, user_id) do nothing;
+
+  return target_campaign_id;
+end;
+$$;
+
+revoke all on function public.get_campaign_invite(text) from public;
+grant execute on function public.get_campaign_invite(text) to authenticated;
+
+revoke all on function public.join_campaign_by_invite(text) from public;
+grant execute on function public.join_campaign_by_invite(text) to authenticated;
+
 alter table public.profiles enable row level security;
 alter table public.campaigns enable row level security;
 alter table public.campaign_members enable row level security;
 alter table public.characters enable row level security;
 alter table public.sessions enable row level security;
 alter table public.ai_outputs enable row level security;
+alter table public.campaign_invites enable row level security;
 
 drop policy if exists "Users can view their own profile" on public.profiles;
 create policy "Users can view their own profile"
@@ -318,6 +422,23 @@ create policy "Campaign GMs can view AI outputs"
 drop policy if exists "Campaign GMs can create AI outputs" on public.ai_outputs;
 create policy "Campaign GMs can create AI outputs"
   on public.ai_outputs
+  for insert
+  to authenticated
+  with check (
+    created_by = auth.uid()
+    and public.is_campaign_gm(campaign_id, auth.uid())
+  );
+
+drop policy if exists "Campaign GMs can view invite links" on public.campaign_invites;
+create policy "Campaign GMs can view invite links"
+  on public.campaign_invites
+  for select
+  to authenticated
+  using (public.is_campaign_gm(campaign_id, auth.uid()));
+
+drop policy if exists "Campaign GMs can create invite links" on public.campaign_invites;
+create policy "Campaign GMs can create invite links"
+  on public.campaign_invites
   for insert
   to authenticated
   with check (

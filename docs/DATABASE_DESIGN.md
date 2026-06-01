@@ -15,7 +15,7 @@ The database should:
 - Store membership and role information for each Campaign.
 - Persist player character sheets, Session logs, AI summaries, and AI output history.
 - Keep permissions enforceable at the database and server layer.
-- Stay small enough for the MVP while leaving clear extension points for NPCs, invites, audit logs, and richer collaboration features.
+- Stay small enough for the MVP while leaving clear extension points for NPCs, audit logs, and richer collaboration features.
 
 ## 2. Core Business Objects
 
@@ -32,6 +32,10 @@ When a new Supabase Auth user is inserted into `auth.users`, the database trigge
 ### Campaign Member
 
 `campaign_members` links users to Campaigns and stores their role. MVP roles are `gm` and `player`.
+
+### Campaign Invite
+
+`campaign_invites` stores private invite links created by GMs. Invites let authenticated users join a private Campaign as `player` without public Campaign discovery.
 
 ### Character
 
@@ -51,11 +55,13 @@ When a new Supabase Auth user is inserted into `auth.users`, the database trigge
 auth.users 1 -- 1 profiles
 profiles 1 -- many campaigns.owner_id
 profiles 1 -- many campaign_members.user_id
+profiles 1 -- many campaign_invites.created_by
 profiles 1 -- many characters.user_id
 profiles 1 -- many sessions.created_by
 profiles 1 -- many ai_outputs.created_by
 
 campaigns 1 -- many campaign_members
+campaigns 1 -- many campaign_invites
 campaigns 1 -- many characters
 campaigns 1 -- many sessions
 campaigns 1 -- many ai_outputs
@@ -63,7 +69,7 @@ campaigns 1 -- many ai_outputs
 sessions 1 -- many ai_outputs
 ```
 
-Deleting a Campaign cascades to `campaign_members`, `characters`, `sessions`, and `ai_outputs`.
+Deleting a Campaign cascades to `campaign_members`, `campaign_invites`, `characters`, `sessions`, and `ai_outputs`.
 
 ## 4. Table Designs
 
@@ -113,7 +119,25 @@ Notes:
 - A unique constraint on `(campaign_id, user_id)` prevents duplicate membership.
 - The Campaign owner should also have a `gm` row in this table.
 
-## 4.4 characters
+## 4.4 campaign_invites
+
+Purpose: Stores private Campaign join links created by GMs.
+
+| Field | Type | Notes |
+|---|---|---|
+| id | uuid | Primary key. Defaults to `gen_random_uuid()`. |
+| campaign_id | uuid | Required Campaign ID. Cascades on Campaign delete. |
+| token | text | Required unique invite token. Must be random and unpredictable. |
+| created_by | uuid | Required creator profile ID. Cascades on profile delete. |
+| expires_at | timestamptz | Optional expiration timestamp. Null means no expiration in MVP. |
+| created_at | timestamptz | Invite creation timestamp. |
+
+Notes:
+
+- Invite links are not public discovery. A user must have the tokenized `/join/[token]` URL.
+- MVP does not implement revoke/delete UI yet, but deleting a Campaign removes its invites.
+
+## 4.5 characters
 
 Purpose: Stores generic MVP character sheets.
 
@@ -132,7 +156,7 @@ Purpose: Stores generic MVP character sheets.
 | created_at | timestamptz | Creation timestamp. |
 | updated_at | timestamptz | Update timestamp. |
 
-## 4.5 sessions
+## 4.6 sessions
 
 Purpose: Stores Session records and saved AI summaries.
 
@@ -148,7 +172,7 @@ Purpose: Stores Session records and saved AI summaries.
 | created_at | timestamptz | Creation timestamp. |
 | updated_at | timestamptz | Update timestamp. |
 
-## 4.6 ai_outputs
+## 4.7 ai_outputs
 
 Purpose: Stores AI generation history for summaries and future AI features.
 
@@ -170,8 +194,10 @@ MVP permissions are based on Campaign membership:
 - Unauthenticated users cannot access private Campaign data.
 - A Campaign owner is a GM.
 - `campaign_members.role = 'gm'` can manage Campaign data, Sessions, and AI generation.
+- `campaign_members.role = 'gm'` can create and view invite links for their Campaign.
 - `campaign_members.role = 'player'` can view Campaign content exposed to members and manage their own Characters.
 - Non-members cannot read or mutate private Campaign data.
+- Authenticated users can join a private Campaign only through a valid invite token.
 
 Server actions, route handlers, and data access functions must verify the current user and Campaign membership before returning or mutating private data.
 
@@ -181,6 +207,7 @@ The schema adds indexes for common MVP access patterns:
 
 - Campaign lists by owner: `campaigns(owner_id)`.
 - Campaign membership lookup: `campaign_members(user_id)`, `campaign_members(campaign_id)`.
+- Invite lookup and listing: `campaign_invites(token)`, `campaign_invites(campaign_id)`.
 - Character lists per Campaign and user: `characters(campaign_id)`, `characters(user_id)`.
 - Session lists per Campaign and creator: `sessions(campaign_id)`, `sessions(created_by)`.
 - AI output history per Campaign, Session, and creator: `ai_outputs(campaign_id)`, `ai_outputs(session_id)`, `ai_outputs(created_by)`.
@@ -213,14 +240,19 @@ The MVP schema enables Row Level Security on all application tables:
 - `characters`
 - `sessions`
 - `ai_outputs`
+- `campaign_invites`
 
 To avoid recursive policies on `campaign_members`, the schema defines helper functions:
 
 - `public.is_campaign_member(campaign_id uuid, user_id uuid)`
 - `public.is_campaign_gm(campaign_id uuid, user_id uuid)`
 - `public.is_campaign_owner(campaign_id uuid, user_id uuid)`
+- `public.get_campaign_invite(invite_token text)`
+- `public.join_campaign_by_invite(invite_token text)`
 
-These helpers are `security definer`, `stable`, and use a fixed `search_path = public`.
+These helpers use `security definer` where needed and a fixed `search_path = public`.
+
+The invite RPC functions avoid opening broad direct SELECT access to all active invite rows. `get_campaign_invite` returns only minimal Campaign information for a valid token, while `join_campaign_by_invite` validates the token and inserts a `player` membership if the user is not already a member.
 
 ## 9. Table Access Rules
 
@@ -242,6 +274,16 @@ These helpers are `security definer`, `stable`, and use a fixed `search_path = p
 - Campaign members can view membership rows for Campaigns they belong to.
 - Campaign owners and GMs can manage membership rows.
 - The owner rule allows the initial owner to add the first GM/member rows after Campaign creation.
+
+### campaign_invites
+
+- GMs can view invite links for Campaigns where they are GM.
+- GMs can create invite links for Campaigns where they are GM.
+- Non-GMs cannot directly manage invite rows.
+- Authenticated users use `get_campaign_invite(token)` to read minimal valid invite information.
+- Authenticated users use `join_campaign_by_invite(token)` to join as `player`.
+- The join RPC rejects missing authentication, invalid tokens, and expired invites.
+- Duplicate membership is prevented by `campaign_members(campaign_id, user_id)` and handled with `on conflict do nothing`.
 
 ### characters
 
@@ -271,6 +313,8 @@ The current RLS policies are intentionally conservative and MVP-oriented:
 - There is no character delete policy yet.
 - There is no Session delete policy yet.
 - There is no AI output update/delete policy yet.
+- There is no invite revoke/delete UI yet.
+- Invite expiration exists in the schema but MVP-created invites currently do not set `expires_at`.
 - Players cannot view `ai_outputs`; they can only view saved summaries through `sessions`.
 - GMs cannot edit player Characters yet, even though that may be useful later.
 - Campaign creation and initial membership insertion are separate operations. Application code should create the Campaign and then insert the owner as a `gm` member.
@@ -280,7 +324,7 @@ Future improvements:
 
 - Add delete policies with explicit owner/GM checks.
 - Add DTO/server-side filtering for player-visible Session fields.
-- Add invite-specific policies once the `invites` table exists.
+- Add invite revoke/delete actions and optional expiration controls.
 - Add audit logging for role changes and destructive actions.
 - Add stricter profile visibility for non-members.
 
@@ -303,16 +347,17 @@ Before shipping Auth and Campaign features, test these scenarios in Supabase or 
 - A player cannot create or update Sessions.
 - A GM can create and read AI outputs.
 - A player cannot read raw `ai_outputs`.
+- A GM can create a Campaign invite.
+- A non-GM cannot create a Campaign invite.
+- An authenticated non-member can view minimal invite details with a valid token.
+- An authenticated user can join a Campaign as `player` with a valid token.
+- An invalid or expired invite cannot be used to join.
 
 ## 12. Tables Deferred From MVP P0
 
 ### npcs
 
 Deferred because AI NPC generation is P1 in the PRD. The MVP P0 validation focuses on AI Session summaries.
-
-### invites
-
-Deferred because invitation links are P1. During P0, membership can be created manually or through a later simple GM flow.
 
 ### audit_logs
 
