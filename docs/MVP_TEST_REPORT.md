@@ -61,6 +61,7 @@ Do not record real passwords in this document.
 | TC-013 | Empty `raw_log` error | Attempt summary generation with empty `raw_log`. | Clear error is shown and AI API is not called. | GM clicked Generate Summary on a Session with empty `raw_log`; a clear error was shown and no AI Summary was generated. | Passed |  |
 | TC-014 | Player cannot generate summary | Login as Player and view a Session detail page. | Generate Summary button is not visible; direct API call is rejected. | Could not complete because the MVP does not yet include invite / join Campaign flow, so a newly registered user cannot join another user's Campaign as Player. | Blocked | Blocked by missing invite / join Campaign flow. |
 | TC-015 | Non-member cannot access private Campaign | Login as a user who is not a Campaign member and visit Campaign routes. | Private Campaign data is not shown. | Non-member account directly visited a private Campaign URL; private Campaign data was not shown. | Passed |  |
+| TC-016 | Password Reset email-link flow | Request a password reset email, click the Supabase email link, verify `/auth/confirm` establishes a recovery session, update password from `/update-password`, then login with the new password. | User can update password through the email link without re-entering email, then login with the new password. | Code implements token_hash + verifyOtp flow and lint/build passed, but real email-link validation could not be completed. | Blocked | Blocked by Supabase email rate limit, pending manual email-link validation. |
 
 Status values: `Passed`, `Failed`, `Blocked`, `Not Run`.
 
@@ -81,12 +82,13 @@ Check the following tables in Supabase Table Editor:
 - AI generation is not transactional with `ai_outputs` insertion.
 - `raw_log` is a plain textarea.
 - Player access to `raw_log` may need privacy refinement.
+- Password Reset uses token_hash + verifyOtp flow, but manual email-link validation is blocked by Supabase email rate limit.
 - UI is MVP-level.
 - No deployment yet.
 
 ## 8. Friend Trial Feedback
 
-- Login page does not provide password reset.
+- Password Reset has been implemented with token_hash + verifyOtp flow, but has not yet passed manual email-link validation because Supabase email rate limit is currently blocking testing.
 - Newly registered users cannot find or join Campaigns created by others because invite / join flow is not implemented.
 
 ## 9. Final Result
@@ -108,6 +110,8 @@ Auth -> Campaign -> Character -> Session -> AI Summary.
 Empty raw_log error handling passed.
 Non-member private Campaign access check passed.
 Player permission testing is blocked by the missing invite / join Campaign flow.
+Password Reset manual validation is blocked by Supabase email rate limit,
+pending manual email-link validation.
 
 Supabase records were verified for auth.users, profiles, campaigns,
 campaign_members, characters, sessions, and ai_outputs.
@@ -120,6 +124,6 @@ Pending checks:
 - Player permission behavior after invite / join Campaign flow exists.
 - Character self-edit as a separate explicit test.
 - Session raw_log edit as a separate explicit test.
-- Password reset UX.
+- Password Reset email-link validation after Supabase email rate limit clears.
 - Invite / join Campaign flow.
 ```
